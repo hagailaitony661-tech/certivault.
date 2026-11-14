@@ -820,7 +820,7 @@ async function issueCertificate(){
   $("previewCertNumber").textContent=
    "Certificate No: "+(data.certificate_number||"Issued");
 
-  renderQRCode(data.verification_token||token);
+  renderQRCode(data.verification_token || data.verificationToken || token);
 
   message(
    "saveMessage",
