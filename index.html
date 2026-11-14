@@ -1,0 +1,505 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CertiVault | HAGAI TECHNOLOGY LTD</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--primary:#142b52;--accent:#c49b42;--bg:#f3f5f9;--text:#202b3c}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer;border:0;border-radius:8px;padding:11px 16px;background:var(--primary);color:white}
+button:hover{opacity:.9}
+input,textarea,select{width:100%;padding:11px;border:1px solid #dce1e9;border-radius:8px;margin:6px 0 13px;background:white}
+label{font-size:13px;font-weight:bold}
+h1,h2,h3{margin-top:0}
+.hidden{display:none!important}
+.login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#101e39,#254c79)}
+.login-card{background:white;padding:32px;border-radius:18px;width:min(420px,100%);box-shadow:0 15px 50px #0003}
+.brand{font-size:25px;font-weight:900;color:var(--primary)}
+.brand span{color:var(--accent)}
+.small{font-size:12px;color:#778195}
+.app{display:flex;min-height:100vh}
+.sidebar{width:240px;background:#14233e;color:white;padding:22px;flex-shrink:0}
+.sidebar .brand{color:white;margin-bottom:30px}
+.nav button{display:block;width:100%;text-align:left;background:transparent;margin:5px 0;color:#dce5f4}
+.nav button.active,.nav button:hover{background:#ffffff20}
+.main{flex:1;min-width:0;padding:25px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:25px}
+.panel{background:white;border-radius:14px;padding:20px;margin-bottom:20px;box-shadow:0 3px 15px #15294a0a}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.stat{background:white;padding:20px;border-radius:12px}
+.stat strong{font-size:26px;color:var(--primary);display:block;margin-top:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px}
+.template{border:1px solid #e2e6ed;border-radius:12px;padding:12px;cursor:pointer}
+.template.selected{border:2px solid var(--accent);background:#fffaf0}
+.template-preview{height:115px;border:5px double var(--accent);display:grid;place-items:center;text-align:center;padding:10px;background:#fff;color:#142b52}
+.template-preview b{font-family:Georgia,serif;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.certificate{background:#fff;border:12px double var(--gold,#c49b42);padding:35px;text-align:center;min-height:490px;position:relative;color:#172d50}
+.certificate h1{font-family:Georgia,serif;font-size:32px;letter-spacing:2px}
+.certificate .recipient{font-family:Georgia,serif;font-size:29px;color:var(--gold,#c49b42);border-bottom:1px solid #aaa;display:inline-block;padding:8px 25px}
+.cert-logo{max-width:85px;max-height:70px;object-fit:contain}
+.cert-footer{font-size:11px;margin-top:25px;color:#555}
+#qrcode{display:flex;justify-content:center;margin:10px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:550px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid #edf0f4;font-size:13px}
+th{background:#f7f8fb}
+.status{padding:5px 9px;border-radius:20px;background:#e5f6eb;color:#16753b;font-size:11px}
+.danger{background:#a83232}
+.secondary{background:#64748b}
+.notice{padding:12px;border-radius:8px;background:#fff8e8;color:#795b16;font-size:13px;margin-bottom:15px}
+@media(max-width:750px){
+.app{display:block}.sidebar{width:100%;padding:12px}
+.sidebar .brand{margin:5px 0 12px}
+.nav{display:flex;overflow-x:auto;gap:5px}
+.nav button{white-space:nowrap;width:auto;font-size:12px}
+.main{padding:14px}.stats{grid-template-columns:1fr 1fr}
+.row{grid-template-columns:1fr}
+}
+@media print{
+body{background:white}
+body *{visibility:hidden}
+#certificatePreview,#certificatePreview *{visibility:visible}
+#certificatePreview{position:absolute;left:0;top:0;width:100%;margin:0}
+.certificate{min-height:700px;break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<section id="loginScreen" class="login">
+ <div class="login-card">
+  <div class="brand">CERTI<span>VAULT</span></div>
+  <p class="small">Professional Certificate Management System</p>
+  <h2>Welcome back</h2>
+  <form id="loginForm">
+   <label>Email address</label>
+   <input id="email" type="email" required placeholder="Your email">
+   <label>Password</label>
+   <input id="password" type="password" required placeholder="Your password">
+   <button style="width:100%">Sign In</button>
+  </form>
+  <p id="loginMessage" class="small"></p>
+  <p class="small">Powered by HAGAI TECHNOLOGY LTD</p>
+ </div>
+</section>
+
+<section id="appScreen" class="app hidden">
+ <aside class="sidebar">
+  <div class="brand">CERTI<span>VAULT</span></div>
+  <div class="nav">
+   <button class="active" data-page="dashboard">▦ Dashboard</button>
+   <button data-page="create">✚ Create Certificate</button>
+   <button data-page="templates">▤ Templates</button>
+   <button data-page="certificates">▣ Certificates</button>
+   <button data-page="settings">⚙ Settings</button>
+  </div>
+  <p class="small" style="color:#b9c6d9;margin-top:30px">HAGAI TECHNOLOGY LTD</p>
+  <button id="logoutBtn" class="secondary" style="width:100%">Sign Out</button>
+ </aside>
+
+ <main class="main">
+  <div class="top">
+   <div><h2 id="pageTitle">Dashboard</h2><div class="small" id="institutionLabel">Certificate Management</div></div>
+   <div class="small" id="userLabel"></div>
+  </div>
+
+  <section id="dashboardPage" class="page">
+   <div class="stats">
+    <div class="stat">Total Certificates<strong id="totalCount">0</strong></div>
+    <div class="stat">Active Certificates<strong id="activeCount">0</strong></div>
+    <div class="stat">Templates<strong id="templateCount">0</strong></div>
+   </div>
+   <div class="panel" style="margin-top:20px">
+    <h3>Welcome to CertiVault</h3>
+    <p>Create, manage and verify certificates from one professional platform.</p>
+    <button onclick="showPage('create')">Create New Certificate</button>
+   </div>
+   <div class="panel">
+    <h3>Recent Certificates</h3>
+    <div id="recentList"></div>
+   </div>
+  </section>
+
+  <section id="createPage" class="page hidden">
+   <div class="panel">
+    <h3>Choose Certificate Template</h3>
+    <div id="templateChoices" class="grid"></div>
+   </div>
+   <div class="panel">
+    <h3>Certificate Information</h3>
+    <div class="row">
+     <div><label>Recipient Full Name</label><input id="recipient" placeholder="Full name"></div>
+     <div><label>Certificate Title</label><input id="certTitle" value="CERTIFICATE OF ACHIEVEMENT"></div>
+    </div>
+    <div class="row">
+     <div><label>Course / Programme</label><input id="course" placeholder="Course or programme"></div>
+     <div><label>Issue Date</label><input id="issueDate" type="date"></div>
+    </div>
+    <label>Description / Achievement</label>
+    <textarea id="description" rows="3" placeholder="This certificate is awarded in recognition of..."></textarea>
+    <div class="row">
+     <div><label>Signatory Name</label><input id="signer" placeholder="Authorized person's name"></div>
+     <div><label>Signatory Position</label><input id="signerPosition" placeholder="Director / Principal"></div>
+    </div>
+    <div class="row">
+     <div><label>Certificate Main Colour</label><input id="certColor" type="color" value="#142b52"></div>
+     <div><label>Border / Accent Colour</label><input id="borderColor" type="color" value="#c49b42"></div>
+    </div>
+    <label>Institution Logo</label><input id="logoInput" type="file" accept="image/*">
+    <button id="previewBtn">Update Preview</button>
+   </div>
+   <div class="panel">
+    <h3>Live Certificate Preview</h3>
+    <div id="certificatePreview">
+     <div class="certificate" id="certificate">
+      <img id="previewLogo" class="cert-logo hidden">
+      <p id="previewInstitution">YOUR INSTITUTION</p>
+      <h1 id="previewTitle">CERTIFICATE OF ACHIEVEMENT</h1>
+      <p>This certificate is proudly presented to</p>
+      <div class="recipient" id="previewRecipient">Recipient Name</div>
+      <p id="previewDescription">In recognition of outstanding achievement.</p>
+      <h3 id="previewCourse">Course / Programme</h3>
+      <p id="previewDate"></p>
+      <div style="margin-top:25px">
+       <strong id="previewSigner">Authorized Signatory</strong><br>
+       <small id="previewPosition">Position</small>
+      </div>
+      <div id="qrcode"></div>
+      <p class="cert-footer">Powered by HAGAI TECHNOLOGY LTD</p>
+     </div>
+    </div>
+    <button id="saveCertificateBtn" style="margin-top:15px">Save & Issue Certificate</button>
+    <button class="secondary" onclick="window.print()">Print / Save PDF</button>
+    <p id="saveMessage" class="small"></p>
+   </div>
+  </section>
+
+  <section id="templatesPage" class="page hidden">
+   <div class="panel">
+    <h3>Certificate Template Library</h3>
+    <p class="small">Select a design to use when creating a certificate.</p>
+    <div id="allTemplates" class="grid"></div>
+   </div>
+  </section>
+
+  <section id="certificatesPage" class="page hidden">
+   <div class="panel">
+    <h3>Issued Certificates</h3>
+    <input id="certificateSearch" placeholder="Search recipient or certificate number">
+    <div class="table-wrap"><table>
+     <thead><tr><th>Certificate No.</th><th>Recipient</th><th>Title</th><th>Status</th><th>Actions</th></tr></thead>
+     <tbody id="certificateRows"></tbody>
+    </table></div>
+   </div>
+  </section>
+
+  <section id="settingsPage" class="page hidden">
+   <div class="panel">
+    <h3>Institution Settings</h3>
+    <label>Institution Name</label><input id="settingName">
+    <label>Institution Email</label><input id="settingEmail">
+    <label>Institution Slug</label><input id="settingSlug">
+    <button id="saveSettingsBtn">Save Settings</button>
+    <p id="settingsMessage" class="small"></p>
+   </div>
+   <div class="panel">
+    <h3>System Information</h3>
+    <p>Platform: CertiVault</p>
+    <p>Developer: HAGAI TECHNOLOGY LTD</p>
+    <p>Certificate footer: Powered by HAGAI TECHNOLOGY LTD</p>
+   </div>
+  </section>
+ </main>
+</section>
+
+<section id="verifyScreen" class="login hidden">
+ <div class="login-card">
+  <div class="brand">CERTI<span>VAULT</span></div>
+  <h2>Certificate Verification</h2>
+  <div id="verificationResult">Checking certificate...</div>
+  <p class="small">Powered by HAGAI TECHNOLOGY LTD</p>
+ </div>
+</section>
+
+<script>
+const SUPABASE_URL = "https://fwiyjtorsopjqcomurrj.supabase.co";
+const SUPABASE_KEY = "WEKA_SUPABASE_PUBLISHABLE_KEY_HAPA";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser=null;
+let profile=null;
+let institution=null;
+let templates=[];
+let certificates=[];
+let selectedTemplate=null;
+let logoData="";
+let qrCodeValue="";
+
+const $ = id => document.getElementById(id);
+const today = new Date().toISOString().slice(0,10);
+$("issueDate").value=today;
+
+function message(id,text){$(id).textContent=text;}
+function escapeHTML(value){
+ return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function showPage(page){
+ document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));
+ $(page+"Page").classList.remove("hidden");
+ document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
+ const titles={dashboard:"Dashboard",create:"Create Certificate",templates:"Templates",certificates:"Certificates",settings:"Settings"};
+ $("pageTitle").textContent=titles[page]||"CertiVault";
+ if(page==="certificates") renderCertificates();
+ if(page==="templates") renderTemplates();
+}
+document.querySelectorAll(".nav button").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+
+async function login(email,password){
+ const {data,error}=await db.auth.signInWithPassword({email,password});
+ if(error) throw error;
+ currentUser=data.user;
+ await loadApplication();
+}
+$("loginForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ message("loginMessage","Signing in...");
+ try{await login($("email").value,$("password").value);}
+ catch(err){message("loginMessage",err.message);}
+});
+$("logoutBtn").onclick=async()=>{
+ await db.auth.signOut();
+ location.reload();
+};
+
+async function loadApplication(){
+ $("loginScreen").classList.add("hidden");
+ $("appScreen").classList.remove("hidden");
+ $("userLabel").textContent=currentUser.email||"";
+ await loadProfile();
+ await loadTemplates();
+ await loadCertificates();
+ showPage("dashboard");
+}
+
+async function loadProfile(){
+ const {data,error}=await db.from("profiles").select("*").eq("id",currentUser.id).maybeSingle();
+ if(error) throw error;
+ profile=data;
+ if(!profile){throw new Error("Profile haijapatikana. Hakikisha profile yako imeunganishwa na institution kwenye Supabase.");}
+ const result=await db.from("institutions").select("*").eq("id",profile.institution_id).maybeSingle();
+ if(result.error) throw result.error;
+ institution=result.data;
+ if(!institution) throw new Error("Institution haijapatikana.");
+ $("institutionLabel").textContent=institution.name;
+ $("settingName").value=institution.name||"";
+ $("settingEmail").value=institution.email||"";
+ $("settingSlug").value=institution.slug||"";
+ $("previewInstitution").textContent=institution.name||"YOUR INSTITUTION";
+}
+
+async function loadTemplates(){
+ const {data,error}=await db.from("certificate_templates").select("*").order("name");
+ if(error) throw error;
+ templates=data||[];
+ $("templateCount").textContent=templates.length;
+ if(templates.length){
+  selectedTemplate=templates[0];
+ }
+ renderTemplates();
+ renderTemplateChoices();
+}
+
+function renderTemplateCard(t){
+ const d=t.design||{};
+ const color=d.color||d.primaryColor||"#142b52";
+ const accent=d.accent||d.borderColor||"#c49b42";
+ return `<div class="template ${selectedTemplate?.id===t.id?"selected":""}" data-id="${escapeHTML(t.id)}">
+  <div class="template-preview" style="border-color:${escapeHTML(accent)};color:${escapeHTML(color)}">
+   <div><b>${escapeHTML(t.name)}</b><p style="font-size:10px">CERTIFICATE</p><small>AWARDED TO</small></div>
+  </div>
+  <h4>${escapeHTML(t.name)}</h4>
+  <p class="small">${escapeHTML(t.category||"General")}</p>
+ </div>`;
+}
+function renderTemplates(){
+ $("allTemplates").innerHTML=templates.map(renderTemplateCard).join("")||"No templates found.";
+ $("allTemplates").querySelectorAll(".template").forEach(el=>el.onclick=()=>chooseTemplate(el.dataset.id));
+}
+function renderTemplateChoices(){
+ $("templateChoices").innerHTML=templates.map(renderTemplateCard).join("")||"No templates found.";
+ $("templateChoices").querySelectorAll(".template").forEach(el=>el.onclick=()=>chooseTemplate(el.dataset.id));
+}
+function chooseTemplate(id){
+ selectedTemplate=templates.find(t=>t.id===id)||null;
+ if(selectedTemplate){
+  const d=selectedTemplate.design||{};
+  $("certColor").value=d.color||d.primaryColor||"#142b52";
+  $("borderColor").value=d.accent||d.borderColor||"#c49b42";
+ }
+ renderTemplates();
+ renderTemplateChoices();
+ updatePreview();
+}
+
+$("logoInput").addEventListener("change",e=>{
+ const file=e.target.files[0];
+ if(!file)return;
+ if(file.size>2*1024*1024){alert("Logo iwe chini ya 2MB.");return;}
+ const reader=new FileReader();
+ reader.onload=()=>{logoData=reader.result;updatePreview();};
+ reader.readAsDataURL(file);
+});
+
+function updatePreview(){
+ $("previewInstitution").textContent=institution?.name||"YOUR INSTITUTION";
+ $("previewTitle").textContent=$("certTitle").value||"CERTIFICATE";
+ $("previewRecipient").textContent=$("recipient").value||"Recipient Name";
+ $("previewDescription").textContent=$("description").value||"In recognition of outstanding achievement.";
+ $("previewCourse").textContent=$("course").value||"Course / Programme";
+ $("previewDate").textContent=$("issueDate").value||today;
+ $("previewSigner").textContent=$("signer").value||"Authorized Signatory";
+ $("previewPosition").textContent=$("signerPosition").value||"Position";
+ $("certificate").style.setProperty("--gold",$("borderColor").value);
+ $("certificate").style.color=$("certColor").value;
+ if(logoData){
+  $("previewLogo").src=logoData;
+  $("previewLogo").classList.remove("hidden");
+ }else $("previewLogo").classList.add("hidden");
+}
+$("previewBtn").onclick=updatePreview;
+
+["recipient","certTitle","course","issueDate","description","signer","signerPosition","certColor","borderColor"].forEach(id=>{
+ $(id).addEventListener("input",updatePreview);
+});
+
+async function loadCertificates(){
+ const {data,error}=await db.from("certificates").select("*").eq("institution_id",institution.id).order("created_at",{ascending:false});
+ if(error) throw error;
+ certificates=data||[];
+ $("totalCount").textContent=certificates.length;
+ $("activeCount").textContent=certificates.filter(c=>c.status!=="revoked").length;
+ renderCertificates();
+ $("recentList").innerHTML=certificates.slice(0,5).map(c=>`<p><b>${escapeHTML(c.recipient_name)}</b> — ${escapeHTML(c.certificate_number||"Pending number")}</p>`).join("")||"No certificates issued yet.";
+}
+
+async function issueCertificate(){
+ const recipient=$("recipient").value.trim();
+ if(!recipient){alert("Weka jina la mpokeaji.");return;}
+ if(!selectedTemplate){alert("Chagua template kwanza.");return;}
+ const token=crypto.randomUUID();
+ const payload={
+  institution_id:institution.id,
+  recipient_name:recipient,
+  course_name:$("course").value.trim(),
+  certificate_title:$("certTitle").value.trim(),
+  description:$("description").value.trim(),
+  issue_date:$("issueDate").value||today,
+  status:"active",
+  verification_token:token
+ };
+ message("saveMessage","Saving certificate...");
+ const {data,error}=await db.from("certificates").insert(payload).select().single();
+ if(error){message("saveMessage","Error: "+error.message);return;}
+ qrCodeValue=location.origin+location.pathname+"?verify="+token;
+ message("saveMessage","Certificate saved successfully. Number: "+(data.certificate_number||"Created"));
+ await loadCertificates();
+ $("qrcode").innerHTML="";
+ new QRCode($("qrcode"),{text:qrCodeValue,width:90,height:90});
+}
+$("saveCertificateBtn").onclick=issueCertificate;
+
+function renderCertificates(){
+ const q=($("certificateSearch").value||"").toLowerCase();
+ const list=certificates.filter(c=>
+  (c.recipient_name||"").toLowerCase().includes(q)||
+  (c.certificate_number||"").toLowerCase().includes(q)
+ );
+ $("certificateRows").innerHTML=list.map(c=>`<tr>
+  <td>${escapeHTML(c.certificate_number||"—")}</td>
+  <td>${escapeHTML(c.recipient_name)}</td>
+  <td>${escapeHTML(c.certificate_title||"Certificate")}</td>
+  <td><span class="status">${escapeHTML(c.status||"active")}</span></td>
+  <td><button class="secondary" onclick="viewCertificate('${c.id}')">View</button>
+  ${c.status!=="revoked"?`<button class="danger" onclick="revokeCertificate('${c.id}')">Revoke</button>`:""}</td>
+ </tr>`).join("")||'<tr><td colspan="5">No certificates found.</td></tr>';
+}
+$("certificateSearch").addEventListener("input",renderCertificates);
+
+async function viewCertificate(id){
+ const c=certificates.find(x=>x.id===id);
+ if(!c)return;
+ $("recipient").value=c.recipient_name||"";
+ $("certTitle").value=c.certificate_title||"CERTIFICATE";
+ $("course").value=c.course_name||"";
+ $("description").value=c.description||"";
+ $("issueDate").value=c.issue_date||today;
+ updatePreview();
+ showPage("create");
+}
+async function revokeCertificate(id){
+ if(!confirm("Una uhakika unataka kufuta uhalali wa cheti hiki?"))return;
+ const {error}=await db.from("certificates").update({status:"revoked"}).eq("id",id).eq("institution_id",institution.id);
+ if(error){alert(error.message);return;}
+ await loadCertificates();
+}
+
+$("saveSettingsBtn").onclick=async()=>{
+ const values={
+  name:$("settingName").value.trim(),
+  email:$("settingEmail").value.trim(),
+  slug:$("settingSlug").value.trim()
+ };
+ const {error}=await db.from("institutions").update(values).eq("id",institution.id);
+ if(error){message("settingsMessage",error.message);return;}
+ institution={...institution,...values};
+ $("institutionLabel").textContent=institution.name;
+ $("previewInstitution").textContent=institution.name;
+ message("settingsMessage","Settings saved successfully.");
+};
+
+async function verifyPublic(token){
+ $("loginScreen").classList.add("hidden");
+ $("appScreen").classList.add("hidden");
+ $("verifyScreen").classList.remove("hidden");
+ const result=await db.rpc("verify_certificate",{p_token:token});
+ if(result.error){
+  $("verificationResult").innerHTML="<p>Unable to verify this certificate. Please try again.</p>";
+  return;
+ }
+ const c=Array.isArray(result.data)?result.data[0]:result.data;
+ if(!c){
+  $("verificationResult").innerHTML="<h3>Certificate Not Found</h3><p>This verification code is not recognized.</p>";
+  return;
+ }
+ const valid=c.status!=="revoked";
+ $("verificationResult").innerHTML=`
+  <h3 style="color:${valid?"#16834a":"#b83232"}">${valid?"✓ Certificate Verified":"Certificate Revoked"}</h3>
+  <p><b>Recipient:</b> ${escapeHTML(c.recipient_name)}</p>
+  <p><b>Certificate:</b> ${escapeHTML(c.certificate_number||"")}</p>
+  <p><b>Institution:</b> ${escapeHTML(c.institution_name||"")}</p>
+  <p><b>Course:</b> ${escapeHTML(c.course_name||"")}</p>
+  <p><b>Issue Date:</b> ${escapeHTML(c.issue_date||"")}</p>
+  <p><b>Status:</b> ${valid?"Valid":"Revoked"}</p>`;
+}
+
+(async()=>{
+ const params=new URLSearchParams(location.search);
+ const token=params.get("verify");
+ if(token){await verifyPublic(token);return;}
+ const {data}=await db.auth.getSession();
+ if(data.session){
+  currentUser=data.session.user;
+  try{await loadApplication();}
+  catch(err){alert("Application error: "+err.message);}
+ }
+})();
+</script>
+</body>
+</html>
