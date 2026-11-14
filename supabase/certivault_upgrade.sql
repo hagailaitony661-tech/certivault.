@@ -15,6 +15,10 @@ ALTER TABLE public.certificates
   ADD COLUMN IF NOT EXISTS recipient_photo_path text,
   ADD COLUMN IF NOT EXISTS certificate_data jsonb NOT NULL DEFAULT '{}'::jsonb;
 
+-- Remove the old status rule first so legacy rows can be normalized.
+ALTER TABLE public.certificates
+  DROP CONSTRAINT IF EXISTS certificates_status_check;
+
 -- Make sure old rows have a valid status and token.
 UPDATE public.certificates
 SET status = CASE
@@ -33,9 +37,6 @@ ALTER TABLE public.certificates
   ALTER COLUMN verification_token SET DEFAULT gen_random_uuid();
 
 -- The app uses exactly these two status values.
-ALTER TABLE public.certificates
-  DROP CONSTRAINT IF EXISTS certificates_status_check;
-
 ALTER TABLE public.certificates
   ADD CONSTRAINT certificates_status_check
   CHECK (status IN ('active', 'revoked'));
