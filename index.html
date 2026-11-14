@@ -228,7 +228,7 @@ th{background:#f7f8fb}
 
     <hr>
     <label>Institution Logo</label>
-    <input id="logoInput" type="file" accept="image/*">
+    <input id="logoInput" type="file" accept="image/jpeg,image/png,image/webp">
     <p class="small">Logo itaonekana kwenye preview ya cheti hiki.</p>
 
     <button id="previewBtn">Update Preview</button>
@@ -683,18 +683,23 @@ async function uploadRecipientPhoto(token){
  return data.path;
 }
 
+async function uploadCertificateLogo(token,file){
+ const allowed=["image/jpeg","image/png","image/webp"];
+ if(!allowed.includes(file.type)) throw new Error("Logo lazima iwe JPG, PNG au WEBP.");
+ if(file.size>2*1024*1024) throw new Error("Logo lazima iwe chini ya 2MB.");
+ const extension=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
+ const path=institution.id+"/logos/"+token+"."+extension;
+ const {data,error}=await db.storage.from(PHOTO_BUCKET).upload(path,file,{
+  cacheControl:"3600",upsert:false,contentType:file.type
+ });
+ if(error) throw error;
+ return data.path;
+}
+
 async function getPhotoUrl(path){
  if(!path) return "";
-
- const {data,error}=await db.storage
-  .from(PHOTO_BUCKET)
-  .createSignedUrl(path,3600);
-
- if(error){
-  console.error("Photo URL error:",error.message);
-  return "";
- }
-
+ const {data,error}=await db.storage.from(PHOTO_BUCKET).createSignedUrl(path,3600);
+ if(error){console.error("Photo URL error:",error.message);return "";}
  return data.signedUrl||"";
 }
 
@@ -792,6 +797,7 @@ async function issueCertificate(){
  btn.disabled=true;
 
  let uploadedPath=null;
+ let uploadedLogoPath=null;
 
  try{
   message("saveMessage","Preparing certificate...");
@@ -803,6 +809,24 @@ async function issueCertificate(){
    uploadedPath=await uploadRecipientPhoto(token);
   }
 
+  let savedLogoPath=currentCertificate?.certificate_data?.logo_path||null;
+  const logoFile=$("logoInput").files[0];
+  if(logoFile){
+   message("saveMessage","Uploading institution logo...");
+   uploadedLogoPath=await uploadCertificateLogo(token,logoFile);
+   savedLogoPath=uploadedLogoPath;
+  }
+
+  const certificateData={
+   template_id:selectedTemplate?.id||null,
+   template_name:selectedTemplate?.name||null,
+   signer:$("signer").value.trim(),
+   signer_position:$("signerPosition").value.trim(),
+   certificate_color:$("certColor").value,
+   border_color:$("borderColor").value,
+   logo_path:savedLogoPath
+  };
+
   const payload={
    institution_id:institution.id,
    recipient_name:recipient,
@@ -812,7 +836,8 @@ async function issueCertificate(){
    issue_date:$("issueDate").value||today,
    status:"active",
    verification_token:token,
-   recipient_photo_path:uploadedPath
+   recipient_photo_path:uploadedPath,
+   certificate_data:certificateData
   };
 
   message("saveMessage","Saving certificate...");
@@ -843,9 +868,10 @@ async function issueCertificate(){
   alert("Certificate issued successfully. QR Code generated.");
 
  }catch(err){
-  if(uploadedPath){
-   await db.storage.from(PHOTO_BUCKET).remove([uploadedPath]);
-  }
+  const cleanup=[];
+  if(uploadedPath) cleanup.push(uploadedPath);
+  if(uploadedLogoPath) cleanup.push(uploadedLogoPath);
+  if(cleanup.length) await db.storage.from(PHOTO_BUCKET).remove(cleanup);
 
   message("saveMessage","Error: "+err.message);
  }finally{
@@ -875,6 +901,7 @@ function renderCertificates(){
    <td><span class="status">${escapeHTML(c.status||"active")}</span></td>
    <td>
     <button class="secondary" onclick="viewCertificate('${c.id}')">View</button>
+    <button class="secondary" onclick="printSavedCertificate('${c.id}')">Print</button>
     ${c.status!=="revoked"
      ?`<button class="danger" onclick="revokeCertificate('${c.id}')">Revoke</button>`
      :""}
@@ -901,6 +928,21 @@ async function viewCertificate(id){
  $("description").value=c.description||"";
  $("issueDate").value=c.issue_date||today;
 
+ const meta=c.certificate_data||{};
+ $("signer").value=meta.signer||"";
+ $("signerPosition").value=meta.signer_position||"";
+ $("certColor").value=meta.certificate_color||"#142b52";
+ $("borderColor").value=meta.border_color||"#c49b42";
+ if(meta.template_id){
+  selectedTemplate=templates.find(t=>t.id===meta.template_id)||selectedTemplate;
+ }
+ logoData="";
+ $("logoInput").value="";
+ if(meta.logo_path){
+  const logoUrl=await getPhotoUrl(meta.logo_path);
+  if(logoUrl) logoData=logoUrl;
+ }
+
  recipientPhotoFile=null;
  recipientPhotoPreview="";
  $("photoInput").value="";
@@ -919,6 +961,8 @@ async function viewCertificate(id){
   $("photoPreview").classList.add("hidden");
  }
 
+ renderTemplates();
+ renderTemplateChoices();
  updatePreview();
 
  $("previewCertNumber").textContent=
@@ -927,6 +971,11 @@ async function viewCertificate(id){
  renderQRCode(c.verification_token);
 
  showPage("create");
+}
+
+async function printSavedCertificate(id){
+ await viewCertificate(id);
+ setTimeout(()=>window.print(),250);
 }
 
 /* ==========================================
