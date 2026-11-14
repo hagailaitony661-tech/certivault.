@@ -743,31 +743,53 @@ function getVerificationUrl(token){
  return url.toString();
 }
 
-function renderQRCode(token){
+async function ensureQRCodeLibrary(){
+ if(typeof window.QRCode!=="undefined") return true;
+
+ // Backup CDN in case the primary QR library did not load.
+ return await new Promise(resolve=>{
+  const script=document.createElement("script");
+  script.src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js";
+  script.onload=()=>resolve(typeof window.QRCode!=="undefined");
+  script.onerror=()=>resolve(false);
+  document.head.appendChild(script);
+ });
+}
+
+async function renderQRCode(token){
  const box=$("qrcode");
- if(!box) return;
+ if(!box) return false;
  box.innerHTML="";
 
  if(!token){
   box.textContent="QR CODE WILL APPEAR AFTER ISSUING";
-  return;
+  return false;
  }
 
  const url=getVerificationUrl(token);
 
  try{
-  if(typeof QRCode==="undefined"){
-   throw new Error("QR library haijapakia. Refresh ukurasa kisha jaribu tena.");
-  }
-  new QRCode(box,{
+  const ready=await ensureQRCodeLibrary();
+  if(!ready) throw new Error("QR library haijapakia. Hakikisha internet ipo kisha refresh ukurasa.");
+
+  new window.QRCode(box,{
    text:url,
-   width:140,
-   height:140,
-   correctLevel:QRCode.CorrectLevel?QRCode.CorrectLevel.M:0
+   width:180,
+   height:180,
+   colorDark:"#000000",
+   colorLight:"#ffffff",
+   correctLevel:window.QRCode.CorrectLevel.M
   });
+
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const image=box.querySelector("img,canvas");
+  if(!image) throw new Error("QR code haikutengenezwa.");
+  return true;
  }catch(err){
   console.error("QR generation error:",err);
-  box.textContent="QR Code haikuweza kutengenezwa. Refresh ukurasa ujaribu tena.";
+  box.innerHTML="";
+  box.textContent="QR ERROR: "+err.message;
+  return false;
  }
 }
 
@@ -855,7 +877,7 @@ async function issueCertificate(){
   $("previewCertNumber").textContent=
    "Certificate No: "+(data.certificate_number||"Issued");
 
-  renderQRCode(data.verification_token || data.verificationToken || token);
+  const qrGenerated=await renderQRCode(data.verification_token || data.verificationToken || token);
 
   message(
    "saveMessage",
@@ -865,7 +887,9 @@ async function issueCertificate(){
 
   await loadCertificates();
 
-  alert("Certificate issued successfully. QR Code generated.");
+  alert(qrGenerated
+   ?"Certificate issued successfully. QR Code generated."
+   :"Certificate saved, but QR could not load. Check internet and refresh.");
 
  }catch(err){
   const cleanup=[];
@@ -968,7 +992,7 @@ async function viewCertificate(id){
  $("previewCertNumber").textContent=
   "Certificate No: "+(c.certificate_number||"");
 
- renderQRCode(c.verification_token);
+ await renderQRCode(c.verification_token);
 
  showPage("create");
 }
