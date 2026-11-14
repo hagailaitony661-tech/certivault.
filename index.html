@@ -739,21 +739,31 @@ function getVerificationUrl(token){
 }
 
 function renderQRCode(token){
- $("qrcode").innerHTML="";
+ const box=$("qrcode");
+ if(!box) return;
+ box.innerHTML="";
 
  if(!token){
-  $("qrcode").textContent="QR CODE WILL APPEAR AFTER ISSUING";
+  box.textContent="QR CODE WILL APPEAR AFTER ISSUING";
   return;
  }
 
  const url=getVerificationUrl(token);
 
- new QRCode($("qrcode"),{
-  text:url,
-  width:105,
-  height:105,
-  correctLevel:QRCode.CorrectLevel.H
- });
+ try{
+  if(typeof QRCode==="undefined"){
+   throw new Error("QR library haijapakia. Refresh ukurasa kisha jaribu tena.");
+  }
+  new QRCode(box,{
+   text:url,
+   width:140,
+   height:140,
+   correctLevel:QRCode.CorrectLevel?QRCode.CorrectLevel.M:0
+  });
+ }catch(err){
+  console.error("QR generation error:",err);
+  box.textContent="QR Code haikuweza kutengenezwa. Refresh ukurasa ujaribu tena.";
+ }
 }
 
 /* ==========================================
@@ -1039,8 +1049,9 @@ async function verifyPublic(token){
    return;
   }
 
-  const revoked=String(c.status||"").toLowerCase()==="revoked";
-  const valid=!revoked;
+  const status=String(c.status||"").toLowerCase();
+  const revoked=status==="revoked";
+  const valid=status==="active";
 
   box.innerHTML=`
    <div class="verify-status ${valid?"valid":"revoked"}">
