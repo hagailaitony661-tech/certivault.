@@ -449,7 +449,7 @@ async function loadProfile(){
  const {data,error}=await db
   .from("profiles")
   .select("*")
-  .eq("id",currentUser.id)
+  .eq("user_id",currentUser.id)
   .maybeSingle();
 
  if(error) throw error;
